@@ -1,0 +1,8 @@
+Si no es motor es Kw. Focos , calentadores. Si es motor es en HP.
+Es motor? debería ir arriba. La opción debería cambiar el formulario.
+Si es trifasico se asocio con 220v, si es monofasico con 127v.
+
+2do diagrama
+Preguntar valor de phi. y se automatiza el valor de coseno y seno.
+Calculo corriente o de caida.
+Tomar dato obtenido por el CalculodeCorrite y considera para el calculo de caída.

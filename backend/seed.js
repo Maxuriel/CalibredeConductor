@@ -15,7 +15,7 @@ connection.connect((err) => {
   console.log('Conectado para insertar datos de prueba.\n');
 
   // ===========================
-  // 🧠 MOTORES
+  // 🧠 MOTORES - Columna Corriente de Arranque,  meter más motores.
   // ===========================
   const motores = [
     ['inducción', 15.2, 'Motor trifásico de inducción 10HP', 10, 'trifásico', 0.85, 220],
