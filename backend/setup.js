@@ -10,8 +10,9 @@ dotenv.config();
       password: process.env.DB_PASSWORD,
     });
 
-    // Crear la base de datos si no existe
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME}\`;`);
+    // Eliminar la base de datos si existe y crearla nuevamente
+    await connection.query(`DROP DATABASE IF EXISTS \`${process.env.DB_NAME}\`;`);
+    await connection.query(`CREATE DATABASE \`${process.env.DB_NAME}\`;`);
     console.log(`✅ Base de datos '${process.env.DB_NAME}' verificada/creada.`);
     await connection.end();
 
@@ -33,7 +34,8 @@ dotenv.config();
         potencia_hp FLOAT,
         fases VARCHAR(10),
         factor_potencia FLOAT,
-        voltaje INT
+        voltaje INT,
+        corriente_arranque FLOAT
       );
     `);
     console.log('✅ Tabla motores creada/verificada.');
