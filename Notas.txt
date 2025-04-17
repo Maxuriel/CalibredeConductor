@@ -1,8 +1,7 @@
-1. Si no es motor es Kw. (como Focos , calentadores.) Si es motor es en HP.
-2. Es motor? debería ir arriba. La opción debería cambiar el formulario.
-3. Si es trifasico se asocio con 220v, si es monofasico con 127v.
+Agregar corriente de arranque en resultado
 
-2do diagrama
-Preguntar valor de phi. y se automatiza el valor de coseno y seno.
-Calculo corriente o de caida.
-Tomar dato obtenido por el CalculodeCorrite y considera para el calculo de caída.
+
+
+
+
+2 automatizar el conductor que se le da al usuario validandolo con el máximo permitido
