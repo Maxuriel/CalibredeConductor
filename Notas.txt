@@ -10,3 +10,17 @@
    - Tipo de motor: Inducción
    - Número de conductores: 2
 
+
+revisar el voltaje de los motores y relizar los ajustes
+ vlidar con corriente nominal y buscar el conductor que aguante 
+
+ si se tiene uno de 15 el conductor dsugerido deberia ser el 12 por capacidad de corriente de 20 
+ debe salir conductores mas delgados cuando se agregan conductores por fase
+
+
+si pide mas de 1 conductor que sea la capasidad de (corriente/ n conductores)=9.5
+el resultado por decir 9.5 buscar el siguiente conductor mas grande y usar n conductores 
+
+
+
+agregar que el usuario pueda escoger que motor desea escoger
