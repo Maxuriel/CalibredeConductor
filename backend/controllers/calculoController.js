@@ -54,7 +54,7 @@ const calcularCorriente = async (req, res) => {
     // ✅ Calculamos corriente ajustada para motores: Ipcm = 1.25 × IPC
     corriente = motores[0].ipc;
     inm = 1.25 * corriente;
-    corrienteArranque = motores[0].corriente_arranque;
+    corrienteArranque = motores[0].corriente_arranque; // Ensure this is retrieved and used
   } else {
     // ⚡ Si no es motor, usamos fórmula estándar para corriente
     corriente = fases === 'monofásico'
@@ -109,12 +109,13 @@ const calcularCorriente = async (req, res) => {
     break;
   }
 
-  // 🗃️ Guardamos la consulta en la base de datos
+  // 🗃️ Guardamos la consulta en la base de datos con la nueva columna
   await db.query(`
     INSERT INTO consultas (
-      voltaje, potencia, fp, fases, es_motor, tipo_motor, inm, fa, inc, conductor_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [voltaje, potencia, fp, fases, esMotor, tipoMotor, inm, fa, inc, conductorSugerido.id]
+      voltaje, potencia, fp, fases, es_motor, tipo_motor, inm, fa, inc, conductor_id, corriente_arranque
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  [voltaje, potencia, fp, fases, esMotor, tipoMotor, inm, fa, inc, conductorSugerido.id, esMotor ? corrienteArranque : null]
   );
 
   // 📤 Enviamos los datos al frontend
@@ -124,13 +125,13 @@ const calcularCorriente = async (req, res) => {
     factor_agrupamiento: fa,
     corriente_agrupada: inc.toFixed(2),
     conductor_sugerido: conductorSugerido,
-    corrienteArranque: esMotor ? corrienteArranque : null
+    corrienteArranque: esMotor ? corrienteArranque : null // Ensure this is included in the response
   });
 };
 
 const calcularCaida = async (req, res) => {
   const { voltaje, longitud, porcentajeMaxAV, phi, currentResult } = req.body;
-  
+
   if (!currentResult) {
     return res.status(400).json({ error: 'Se requiere el cálculo de corriente previo.' });
   }
@@ -138,25 +139,51 @@ const calcularCaida = async (req, res) => {
   const phiRadians = (phi * Math.PI) / 180;
   const cosenoPhi = Math.cos(phiRadians);
   const senoPhi = Math.sin(phiRadians);
-  
-  // Use currentResult.corriente_ajustada for calculations
   const inm = parseFloat(currentResult.corriente_ajustada);
-  const conductor = currentResult.conductor_sugerido;
-  
-  // Calculate voltage drop
-  const T = 40;
-  const L = longitud / 1000;
-  const R1 = conductor.resistencia_ohm_km;
-  const X = conductor.reactancia_inductiva || 0;
-  const R = R1 * ((234.5 + T) / 254.5);
-  
-  const AV = 1.73 * inm * L * (R * cosenoPhi + X * senoPhi);
-  const porcentajeAV = (AV / voltaje) * 100;
-  
+
+  // Obtener todos los conductores de la base de datos
+  const [conductores] = await db.query(`SELECT * FROM conductores ORDER BY capacidad_corriente ASC`);
+
+  if (!conductores || conductores.length === 0) {
+    return res.status(404).json({ error: 'No se encontraron conductores en la base de datos.' });
+  }
+
+  const L = longitud / 1000; // Convertir longitud a kilómetros
+  const T = 40; // Temperatura de referencia en °C
+  let conductorSugerido = null;
+
+  for (const c of conductores) {
+    const R1 = c.resistencia_ohm_km;
+    const X = c.reactancia_inductiva || 0;
+    const R = R1 * ((234.5 + T) / 254.5);
+
+    const AV = 1.73 * inm * L * (R * cosenoPhi + X * senoPhi);
+    const porcentajeAV = (AV / voltaje) * 100;
+
+    // Log para depuración
+    console.log(`Conductor ${c.calibre}: AV=${AV.toFixed(2)} V (${porcentajeAV.toFixed(2)}%)`);
+
+    if (porcentajeAV <= porcentajeMaxAV) {
+      conductorSugerido = c;
+      currentResult.av = AV.toFixed(2);
+      currentResult.caida_tension = porcentajeAV.toFixed(2);
+      currentResult.cumple_caida = true;
+      break;
+    }
+  }
+
+  if (!conductorSugerido) {
+    return res.status(404).json({
+      error: 'No se encontró un conductor que cumpla con el porcentaje de caída permitido.',
+      message: 'Por favor, revise los datos ingresados o intente con un porcentaje de caída mayor.'
+    });
+  }
+
   return res.json({
     ...currentResult,
-    caida_tension: porcentajeAV.toFixed(2),
-    av: AV.toFixed(2),
-    cumple_caida: porcentajeAV <= porcentajeMaxAV
+    conductor_sugerido: conductorSugerido,
+    caida_tension: currentResult.caida_tension,
+    av: currentResult.av,
+    cumple_caida: true
   });
 };

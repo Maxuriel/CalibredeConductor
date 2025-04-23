@@ -20,6 +20,7 @@ const Formulario = ({ onResultado }) => {
   // Nuevos estados para historial y para controlar detalles expandidos
   const [historial, setHistorial] = useState([]);
   const [expandedItems, setExpandedItems] = useState({});
+  const [errorMessage, setErrorMessage] = useState(null); // Nuevo estado para el mensaje de error
 
   // Actualizar voltaje cuando cambian las fases
   useEffect(() => {
@@ -29,7 +30,7 @@ const Formulario = ({ onResultado }) => {
     }));
   }, [form.fases]);
 
-  // useEffect para obtener historial al montar el componente
+  // useEffect para obtener historial al montar el componente y cada segundo
   useEffect(() => {
     async function fetchHistorial() {
       try {
@@ -40,6 +41,8 @@ const Formulario = ({ onResultado }) => {
       }
     }
     fetchHistorial();
+    const intervalId = setInterval(fetchHistorial, 1000);
+    return () => clearInterval(intervalId);
   }, []);
 
   // Función para toggle de detalles en historial
@@ -73,6 +76,7 @@ const Formulario = ({ onResultado }) => {
         [name]: newValue
       }));
     }
+    setErrorMessage(null); // Limpiar mensaje de error al realizar otra acción
   };
 
   const handleSubmit = async (e) => {
@@ -96,18 +100,31 @@ const Formulario = ({ onResultado }) => {
 
       const res = await axios.post('http://localhost:3001/api/calcular', dataToSend);
 
-      if (calculationType === 'corriente') {
-        setCurrentResult(res.data);
-      }
+      // Se actualiza currentResult para ambos tipos de cálculo
+      setCurrentResult(res.data);
       onResultado(res.data);
+      setErrorMessage(null); // Limpiar mensaje de error si el cálculo es exitoso
     } catch (error) {
       console.error('Error en la consulta:', error.response?.data || error.message);
-      onResultado({ error: 'No se pudo calcular. Revisa los datos.' });
+
+      // Mostrar error específico si no se encuentra un conductor adecuado
+      if (error.response?.data?.error) {
+        setErrorMessage('No se encontró un conductor que cumpla con el porcentaje de caída permitido. Por favor, revise los datos ingresados o intente con un porcentaje de caída mayor.');
+        setTimeout(() => setErrorMessage(null), 10000); // Ocultar mensaje después de 5 segundos
+        onResultado({ error: error.response.data.error, message: error.response.data.message });
+      } else {
+        onResultado({ error: 'No se pudo calcular. Revisa los datos.' });
+      }
     }
   };
 
   return (
     <>
+      {errorMessage && (
+        <div className="error-message">
+          <p>{errorMessage}</p>
+        </div>
+      )}
       <form onSubmit={handleSubmit}>
         <div className="calculation-type">
           <label>
@@ -240,6 +257,35 @@ const Formulario = ({ onResultado }) => {
           Limpiar
         </button>
       </form>
+      {currentResult && (
+        <div className="resultado">
+          <h2>Resultado</h2>
+          <p>Corriente nominal: {currentResult.corriente} A</p>
+          <p>Corriente ajustada (Inm/Ipc): {currentResult.corriente_ajustada} A</p>
+          <p>Factor de agrupamiento: {currentResult.factor_agrupamiento}</p>
+          <p>Corriente agrupada (Inc): {currentResult.corriente_agrupada} A</p>
+          {currentResult.corrienteArranque && (
+            <p>Corriente de Arranque: {currentResult.corrienteArranque} A</p>
+          )}
+          {currentResult.av && (
+            <p><strong>Caída de tensión (AV):</strong> {currentResult.av} V</p>
+          )}
+          {currentResult.caida_tension && (
+            <p><strong>Porcentaje de caída:</strong> {currentResult.caida_tension} %</p>
+          )}
+          <h3>Conductor sugerido</h3>
+          <p>Calibre: {currentResult.conductor_sugerido.calibre}</p>
+          <p>Capacidad: {currentResult.conductor_sugerido.capacidad_corriente} A</p>
+          <p>Material: {currentResult.conductor_sugerido.material}</p>
+          <p>Aislamiento: {currentResult.conductor_sugerido.aislamiento}</p>
+          <p>Diámetro: {currentResult.conductor_sugerido.diametro_mm2} mm²</p>
+        </div>
+      )}
+      {currentResult && currentResult.error && (
+        <div className="error">
+          <p>{currentResult.error}</p>
+        </div>
+      )}
       
       {/* Nueva sección para visualizar el historial con detalles expandibles */}
       <div className="historial">
@@ -265,20 +311,20 @@ const Formulario = ({ onResultado }) => {
               {expandedItems[item.id] && (
                 <div className="historial-details">
                   <p>Fecha: {formattedDate}</p>
-                  <p>Voltaje: {item.voltaje}</p>
-                  <p>Potencia: {item.potencia}</p>
+                  <p>Voltaje: {item.voltaje} V</p>
+                  <p>Potencia: {item.potencia} {item.es_motor ? "HP" : "kW"}</p>
                   <p>Factor de Potencia: {item.fp}</p>
                   <p>Fases: {item.fases}</p>
                   <p>Es motor: {item.es_motor ? 'Sí' : 'No'}</p>
                   <p>Tipo de Motor: {item.tipo_motor}</p>
-                  <p>Corriente Ajustada: {item.inm}</p>
-                  <p>Factor de Agrupamiento: {item.fa}</p>
-                  <p>Corriente Agrupada: {item.inc}</p>
-                  {item.caida_tension && <p>Caída de Tensión: {item.caida_tension}</p>}
-                  {item.av && <p>AV: {item.av}</p>}
-                  {item.cumple_caida !== undefined && <p>Cumple Caída: {item.cumple_caida ? 'Sí' : 'No'}</p>}
-                  {item.corrienteArranque && <p>Corriente de Arranque: {item.corrienteArranque}</p>}
-                  <p>Calibre: {item.calibre}</p>
+                  {item.corriente && <p>Corriente nominal: {item.corriente} A</p>}
+                  {item.inm && <p>Corriente ajustada (Inm/Ipc): {item.inm} A</p>}
+                  {item.fa && <p>Factor de agrupamiento: {item.fa}</p>}
+                  {item.inc && <p>Corriente agrupada (Inc): {item.inc} A</p>}
+                  {item.corrienteArranque && <p>Corriente de Arranque: {item.corrienteArranque} A</p>}
+                  {item.av && <p><strong>Caída de tensión (AV):</strong> {item.av} V</p>}
+                  {item.porcentaje_caida && <p><strong>Porcentaje de caída:</strong> {item.porcentaje_caida} %</p>}
+                  <p>Calibre: {item.calibre} mm²</p>
                   <p>Material: {item.material}</p>
                   <p>Aislamiento: {item.aislamiento}</p>
                 </div>

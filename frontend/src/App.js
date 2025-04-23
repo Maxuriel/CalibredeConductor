@@ -20,33 +20,6 @@ function App() {
         <Formulario onResultado={setResultado} />
       </header>
 
-      {resultado && (
-        <div className="resultado">
-          {resultado.error ? (
-            <p style={{ color: 'red' }}>{resultado.error}</p>
-          ) : (
-            <>
-              <h2>Resultado</h2>
-              <p><strong>Corriente nominal:</strong> {resultado.corriente} A</p>
-              <p><strong>Corriente ajustada (Inm/Ipc):</strong> {resultado.corriente_ajustada} A</p>
-              <p><strong>Factor de agrupamiento:</strong> {resultado.factor_agrupamiento}</p>
-              <p><strong>Corriente agrupada (Inc):</strong> {resultado.corriente_agrupada} A</p>
-              <p><strong>Caída de tensión (AV):</strong> {resultado.av} V</p>
-              <p><strong>Porcentaje de caída:</strong> {resultado.caida_tension} %</p>
-
-              <h3>Conductor sugerido</h3>
-              <ul>
-                <li><strong>Calibre:</strong> {resultado.conductor_sugerido.calibre}</li>
-                <li><strong>Capacidad:</strong> {resultado.conductor_sugerido.capacidad_corriente} A</li>
-                <li><strong>Material:</strong> {resultado.conductor_sugerido.material}</li>
-                <li><strong>Aislamiento:</strong> {resultado.conductor_sugerido.aislamiento}</li>
-                <li><strong>Diámetro:</strong> {resultado.conductor_sugerido.diametro_mm2} mm²</li>
-              </ul>
-            </>
-          )}
-        </div>
-      )}
-
       {historial.length > 0 && (  // Nuevo bloque para historial
         <div className="resultado">
           <h2>Últimos cálculos</h2>

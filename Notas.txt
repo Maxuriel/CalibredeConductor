@@ -1,7 +1,12 @@
-Agregar corriente de arranque en resultado
-
-
-
-
-
+1 Agregar corriente de arranque en resultado
 2 automatizar el conductor que se le da al usuario validandolo con el máximo permitido
+
+1. Cálculo de corriente para motor trifásico:
+   - Voltaje: 220 V
+   - Potencia: 10 HP
+   - Factor de potencia: 0.85
+   - Fases: Trifásico
+   - Es motor: Sí
+   - Tipo de motor: Inducción
+   - Número de conductores: 2
+

@@ -83,6 +83,7 @@ dotenv.config();
         conductor_id INT,
         caida_tension FLOAT,
         porcentaje_caida FLOAT,
+        corriente_arranque FLOAT,
         FOREIGN KEY (conductor_id) REFERENCES conductores(id)
       );
     `);

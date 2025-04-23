@@ -5,7 +5,7 @@ const db = require('../db/connection');
 router.get('/', async (req, res) => {
   try {
     const [rows] = await db.query(`
-      SELECT c.*, d.calibre, d.material, d.aislamiento
+      SELECT c.*, d.calibre, d.material, d.aislamiento, c.corriente_arranque AS corrienteArranque
       FROM consultas c
       JOIN conductores d ON c.conductor_id = d.id
       ORDER BY c.fecha DESC
