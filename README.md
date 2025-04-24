@@ -130,4 +130,3 @@ Este proyecto está bajo la Licencia MIT. Consulta el archivo [LICENSE](./LICENS
 **Autor:** Maxuriel  
 **GitHub:** [github.com/Maxuriel](https://github.com/Maxuriel)  
 ```
-
