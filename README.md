@@ -93,17 +93,6 @@ La aplicación estará disponible en: [http://localhost:3001](http://localhost:3
 ---
 
 
----
-
-## 📸 Capturas de Pantalla
-
-| Vista       | Descripción                                  |
-|-------------|----------------------------------------------|
-| Historial   | Historial de cálculos con detalles expandibles |
-| Modo Motor  | Configuración especial para motores eléctricos |
-
----
-
 ## 🤝 Contribución
 
 ¡Contribuciones bienvenidas!
