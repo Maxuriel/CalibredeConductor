@@ -1,21 +1,6 @@
-
-```markdown
 # ⚡ Calculadora de Calibre de Conductor y Caída de Tensión
 
 Interfaz intuitiva y profesional para el cálculo de calibres de conductores eléctricos y análisis de caída de tensión en instalaciones industriales y comerciales.
-
-
-
-## 📑 Tabla de Contenidos
-
-- [Descripción](#descripción-)
-- [Características](#características-)
-- [Tecnologías](#tecnologías-)
-- [Instalación](#instalación-)
-- [Uso](#uso-)
-- [Contribución](#contribución-)
-- [Licencia](#licencia-)
-- [Contacto](#contacto-)
 
 ---
 
