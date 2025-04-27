@@ -1,13 +1,10 @@
 # Ejemplo de Resultado de Cálculo de Caída de Tensión
 
 **Parámetros de entrada:**
-- Longitud del tramo: 50 metros
+- Longitud del tramo: 100 metros
 - % máximo permitido de caída: 3%
-- Ángulo φ: 300°
+- Ángulo φ: 90°
 
-**Resultado obtenido:**
-- Corriente nominal: 15.20 A  
-- Corriente ajustada (Inm/Ipc): 19.00 A  
 - Factor de agrupamiento: 0.8  
 - Corriente agrupada (Inc): 15.20 A  
 - Corriente de Arranque: 91.2 A  

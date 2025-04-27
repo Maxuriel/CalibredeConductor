@@ -12,11 +12,11 @@ body {
 }
 
 .App-header {
-  max-width: 600px;
+  max-width: 640px;
   margin: auto;
-  background: white;
+  background: rgb(0, 0, 0);
   border-radius: 12px;
-  padding: 2rem;
+  padding: 1rem;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
@@ -51,7 +51,7 @@ button:hover {
 .resultado {
   max-width: 600px;
   margin: 2rem auto;
-  background: white;
+  background: rgb(0, 0, 0);
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);

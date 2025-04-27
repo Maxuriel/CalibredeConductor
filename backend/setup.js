@@ -40,6 +40,16 @@ dotenv.config();
     `);
     console.log('✅ Tabla motores creada/verificada.');
 
+    // Insertar datos de muestra en la tabla motores
+    await db.query(`
+      INSERT INTO motores (tipo, ipc, descripcion, potencia_hp, fases, factor_potencia, voltaje, corriente_arranque)
+      VALUES
+        ('inducción', 15.2, 'Motor trifásico de inducción 10HP', 10, 'trifásico', 0.85, 220, 91.2),
+        ('sincrónico', 10.5, 'Motor sincrónico monofásico 5HP', 5, 'monofásico', 0.90, 127, 63.0),
+        ('inducción', 18.4, 'Motor de inducción 15HP industrial', 15, 'trifásico', 0.86, 440, 110.4);
+    `);
+    console.log('✅ Datos insertados en la tabla motores.');
+
     // Crear tabla conductores
     await db.query(`
       CREATE TABLE IF NOT EXISTS conductores (
@@ -66,7 +76,7 @@ dotenv.config();
     `);
     console.log('✅ Tabla factores_agrupamiento creada/verificada.');
 
-    // Crear tabla consultas
+    // Crear tabla consultas (actualizada)
     await db.query(`
       CREATE TABLE IF NOT EXISTS consultas (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -77,13 +87,15 @@ dotenv.config();
         fases VARCHAR(20),
         es_motor BOOLEAN,
         tipo_motor VARCHAR(30),
-        inm FLOAT,
-        fa FLOAT,
-        inc FLOAT,
+        corriente_nominal FLOAT,
+        corriente_ajustada FLOAT,
+        factor_agrupamiento FLOAT,
+        corriente_corregida FLOAT,
         conductor_id INT,
         caida_tension FLOAT,
         porcentaje_caida FLOAT,
         corriente_arranque FLOAT,
+        distancia FLOAT,
         FOREIGN KEY (conductor_id) REFERENCES conductores(id)
       );
     `);

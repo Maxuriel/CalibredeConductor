@@ -1,355 +1,523 @@
-// Importamos las dependencias necesarias
-import React, { useState, useEffect } from 'react'; // React y hooks para manejar estados y efectos
-import axios from 'axios'; // Axios para realizar peticiones HTTP
-import './Formulario.css'; // Estilos específicos para este componente
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import './Formulario.css';
 
-// Componente principal Formulario
 const Formulario = ({ onResultado }) => {
-  // Estado para el tipo de cálculo seleccionado (corriente o caída de tensión)
+  // Estados principales
   const [calculationType, setCalculationType] = useState('corriente');
-  // Estado para almacenar el resultado actual del cálculo
   const [currentResult, setCurrentResult] = useState(null);
-  // Estado para los valores del formulario
-  const [form, setForm] = useState({
-    esMotor: false, // Indica si es un motor
-    tipoMotor: 'inducción', // Tipo de motor (por defecto, inducción)
-    voltaje: '220', // Voltaje inicial (220V para trifásico)
-    potencia: '', // Potencia ingresada por el usuario
-    fp: '', // Factor de potencia
-    fases: 'trifásico', // Tipo de fases (trifásico o monofásico)
-    numConductores: 1, // Número de conductores por fase
-    longitud: '', // Longitud del tramo (para cálculo de caída)
-    porcentajeMaxAV: '', // Porcentaje máximo permitido de caída de tensión
-    phi: '', // Ángulo φ en grados
-  });
-  // Estado para almacenar el historial de cálculos
   const [historial, setHistorial] = useState([]);
-  // Estado para controlar qué elementos del historial están expandidos
   const [expandedItems, setExpandedItems] = useState({});
-  // Estado para manejar mensajes de error
   const [errorMessage, setErrorMessage] = useState(null);
+  const [motores, setMotores] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [materialesConductor, setMaterialesConductor] = useState([]);
 
-  // useEffect para actualizar el voltaje automáticamente al cambiar las fases
+  // Estado del formulario con valores iniciales
+  const [form, setForm] = useState({
+    esMotor: false,
+    tipoMotor: '',
+    voltaje: '220',
+    potencia: '',
+    fp: '0.9',
+    fases: 'trifásico',
+    numConductores: 1,
+    distancia: '',
+    porcentajeMaxCaida: '3',
+    phi: '90',
+    materialConductor: '',
+    motorSeleccionado: ''
+  });
+
+  // Efectos secundarios
   useEffect(() => {
+    // Configuración automática de voltaje según tipo de fase
     setForm(prev => ({
       ...prev,
-      voltaje: prev.fases === 'trifásico' ? '220' : '127' // 220V para trifásico, 127V para monofásico
+      voltaje: prev.fases === 'trifásico' ? '220' : '127'
     }));
   }, [form.fases]);
 
-  // useEffect para obtener el historial de cálculos al montar el componente y cada segundo
   useEffect(() => {
-    async function fetchHistorial() {
+    // Carga inicial de motores y materiales
+    const fetchInitialData = async () => {
       try {
-        const res = await axios.get('http://localhost:3001/api/historial'); // Petición GET al backend
-        setHistorial(res.data); // Actualizamos el estado con los datos recibidos
+        if (form.esMotor) {
+          const [motoresRes, materialesRes] = await Promise.all([
+            axios.get('http://localhost:3001/api/motores'),
+            axios.get('http://localhost:3001/api/materiales-conductor')
+          ]);
+          setMotores(motoresRes.data);
+          setMaterialesConductor(materialesRes.data);
+        }
       } catch (error) {
-        console.error('Error al obtener historial:', error); // Log de error en caso de fallo
+        console.error('Error al cargar datos iniciales:', error);
+        setErrorMessage('Error al cargar datos iniciales');
       }
-    }
-    fetchHistorial(); // Llamamos a la función al montar el componente
-    const intervalId = setInterval(fetchHistorial, 1000); // Intervalo para actualizar el historial cada segundo
-    return () => clearInterval(intervalId); // Limpiamos el intervalo al desmontar el componente
+    };
+    
+    fetchInitialData();
+  }, [form.esMotor]);
+
+  useEffect(() => {
+    // Carga del historial con paginación
+    const fetchHistorial = async () => {
+      try {
+        const res = await axios.get('http://localhost:3001/api/historial');
+        setHistorial(res.data);
+      } catch (error) {
+        console.error('Error al obtener historial:', error);
+      }
+    };
+    
+    fetchHistorial();
+    const intervalId = setInterval(fetchHistorial, 1000);
+    return () => clearInterval(intervalId);
   }, []);
 
-  // Función para alternar la expansión de los detalles de un elemento del historial
-  const toggleItem = (id) => {
-    setExpandedItems(prev => ({ ...prev, [id]: !prev[id] })); // Cambiamos el estado de expansión
-  };
-
-  // Función para manejar cambios en los campos del formulario
+  // Manejadores de eventos
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target; // Extraemos propiedades del evento
-    let newValue;
-    if (type === 'checkbox') {
-      newValue = checked; // Para checkboxes, usamos el valor booleano
-    } else if (type === 'number') {
-      newValue = value === '' ? '' : Number(value); // Convertimos a número si es un campo numérico
-    } else {
-      newValue = value; // Para otros tipos, usamos el valor directamente
-    }
-
-    if (name === 'phi') {
-      // Si el campo es phi, convertimos de grados a radianes y calculamos seno y coseno
-      const phiRadians = (Number(value) * Math.PI) / 180;
-      setForm(prev => ({
-        ...prev,
-        [name]: value,
-        cosenoPhi: Math.cos(phiRadians),
-        senoPhi: Math.sin(phiRadians)
-      }));
-    } else {
-      setForm(prev => ({
-        ...prev,
-        [name]: newValue
-      }));
-    }
-    setErrorMessage(null); // Limpiamos el mensaje de error al realizar otra acción
+    const { name, value, type, checked } = e.target;
+    
+    setForm(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : 
+              type === 'number' ? (value === '' ? '' : Number(value)) : 
+              value
+    }));
+    
+    setErrorMessage(null);
   };
 
-  // Función para manejar el envío del formulario
+  const handleMotorChange = (e) => {
+    const motorId = e.target.value;
+    const motorSeleccionado = motores.find(m => m.id === Number(motorId));
+    
+    if (motorSeleccionado) {
+      setForm(prev => ({
+        ...prev,
+        motorSeleccionado: motorId,
+        voltaje: motorSeleccionado.voltaje,
+        potencia: motorSeleccionado.potencia_hp,
+        fp: motorSeleccionado.factor_potencia,
+        fases: motorSeleccionado.fases,
+        tipoMotor: motorSeleccionado.tipo
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Prevenimos el comportamiento por defecto del formulario
+    e.preventDefault();
+    setLoading(true);
+    setErrorMessage(null);
+    
     try {
-      const dataToSend = {
+      // Validación de campos obligatorios
+      if (!form.voltaje || !form.potencia || !form.fases) {
+        throw new Error('Faltan datos obligatorios: voltaje, potencia y tipo de fases');
+      }
+
+      if (calculationType === 'caida' && (!form.distancia || !form.porcentajeMaxCaida || !form.phi)) {
+        throw new Error('Para cálculo de caída, complete: distancia, % máximo de caída y ángulo φ');
+      }
+
+      // Preparación de datos para enviar
+      const payload = {
         ...form,
-        potencia: form.esMotor ? form.potencia : form.potencia / 1.341, // Convertimos kW a HP si no es motor
         calculationType,
         currentResult: calculationType === 'caida' ? currentResult : null
       };
 
-      // Validamos que los campos obligatorios estén completos
-      if (!dataToSend.voltaje || !dataToSend.potencia || !dataToSend.fp || !dataToSend.fases || 
-          (calculationType === 'caida' && (!dataToSend.longitud || !dataToSend.porcentajeMaxAV || !dataToSend.phi))) {
-        throw new Error('Faltan datos obligatorios.');
+      if (calculationType === 'caida') {
+        // Eliminar materialConductor para que se devuelvan los mejores conductores
+        delete payload.materialConductor;
+        // Mapear el campo para que coincida con lo esperado en el backend
+        payload.longitud = form.distancia;
+        payload.porcentajeMaxAV = form.porcentajeMaxCaida;
+        delete payload.distancia;
+        delete payload.porcentajeMaxCaida;
       }
 
-      const res = await axios.post('http://localhost:3001/api/calcular', dataToSend); // Petición POST al backend
-
-      setCurrentResult(res.data); // Actualizamos el resultado actual
-      onResultado(res.data); // Pasamos el resultado al componente padre
-      setErrorMessage(null); // Limpiamos el mensaje de error
+      // Llamada al backend
+      const { data } = await axios.post('http://localhost:3001/api/calcular', payload);
+      
+      setCurrentResult(data);
+      onResultado(data);
+      
     } catch (error) {
-      console.error('Error en la consulta:', error.response?.data || error.message); // Log de error
-
-      // Mostramos un mensaje de error específico si no se encuentra un conductor adecuado
-      if (error.response?.data?.error) {
-        setErrorMessage('No se encontró un conductor que cumpla con el porcentaje de caída permitido. Por favor, revise los datos ingresados o intente con un porcentaje de caída mayor.');
-        setTimeout(() => setErrorMessage(null), 10000); // Ocultamos el mensaje después de 10 segundos
-        onResultado({ error: error.response.data.error, message: error.response.data.message });
-      } else {
-        onResultado({ error: 'No se pudo calcular. Revisa los datos.' });
-      }
+      console.error('Error en el cálculo:', error);
+      const errorMsg = error.response?.data?.error || error.message;
+      setErrorMessage(errorMsg);
+      onResultado({ error: errorMsg });
+    } finally {
+      setLoading(false);
     }
   };
 
+  const resetForm = () => {
+    setForm({
+      esMotor: false,
+      tipoMotor: '',
+      voltaje: '220',
+      potencia: '',
+      fp: '0.9',
+      fases: 'trifásico',
+      numConductores: 1,
+      distancia: '',
+      porcentajeMaxCaida: '3',
+      phi: '30',
+      materialConductor: 'cobre',
+      motorSeleccionado: ''
+    });
+    setCurrentResult(null);
+    onResultado(null);
+  };
+
+  const toggleItemDetails = (id) => {
+    setExpandedItems(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  // Renderizado
   return (
-    <>
-      {/* Mostramos un mensaje de error si existe */}
+    <div className="form-container">
       {errorMessage && (
-        <div className="error-message">
+        <div className="alert alert-danger">
           <p>{errorMessage}</p>
         </div>
       )}
-      {/* Formulario principal */}
-      <form onSubmit={handleSubmit}>
-        {/* Selección del tipo de cálculo */}
-        <div className="calculation-type">
-          <label>
-            <input
-              type="radio"
-              name="calculationType"
-              value="corriente"
-              checked={calculationType === 'corriente'}
-              onChange={(e) => setCalculationType(e.target.value)}
-            />
-            Cálculo de Corriente
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="calculationType"
-              value="caida"
-              checked={calculationType === 'caida'}
-              onChange={(e) => setCalculationType(e.target.value)}
-            />
-            Cálculo de Caída de Tensión
-          </label>
+
+      <form onSubmit={handleSubmit} className="calculation-form">
+        <div className="form-section">
+          <h3>Tipo de Cálculo</h3>
+          <div className="radio-group">
+            <label className="radio-label">
+              <input
+                type="radio"
+                name="calculationType"
+                value="corriente"
+                checked={calculationType === 'corriente'}
+                onChange={() => setCalculationType('corriente')}
+              />
+              Cálculo de Corriente
+            </label>
+            <label className="radio-label">
+              <input
+                type="radio"
+                name="calculationType"
+                value="caida"
+                checked={calculationType === 'caida'}
+                onChange={() => setCalculationType('caida')}
+                disabled={!currentResult && calculationType !== 'caida'}
+              />
+              Cálculo de Caída de Tensión
+            </label>
+          </div>
         </div>
 
-        {/* Renderizamos el formulario según el tipo de cálculo */}
         {calculationType === 'corriente' ? (
-          // Formulario para cálculo de corriente
-          <>
-            {/* Campos específicos para cálculo de corriente */}
-            <label>
-              <input type="checkbox" name="esMotor" checked={form.esMotor} onChange={handleChange} />
-              ¿Es motor?
-            </label>
+          <div className="form-section">
+            <h3>Datos del Circuito</h3>
             
-            <label>Tipo de Motor:
-              <select name="tipoMotor" value={form.tipoMotor} onChange={handleChange}>
-                <option value="inducción">Inducción</option>
-                <option value="otro">Otro</option>
-              </select>
-            </label><br />
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  name="esMotor"
+                  checked={form.esMotor}
+                  onChange={handleChange}
+                />
+                ¿Es un motor?
+              </label>
+            </div>
 
-            <label>Fases:
-              <select name="fases" value={form.fases} onChange={handleChange}>
-                <option value="trifásico">Trifásico</option>
-                <option value="monofásico">Monofásico</option>
-              </select>
-            </label><br />
+            {form.esMotor ? (
+              <div className="motor-selection">
+                <div className="form-group">
+                  <label>Seleccione un motor:</label>
+                  <select
+                    name="motorSeleccionado"
+                    value={form.motorSeleccionado}
+                    onChange={handleMotorChange}
+                    required
+                  >
+                    <option value="">-- Seleccione un motor --</option>
+                    {motores.map(motor => (
+                      <option key={motor.id} value={motor.id}>
+                        {motor.descripcion} ({motor.potencia_hp} HP, {motor.voltaje} V)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label>Tipo de Fases:</label>
+                  <select
+                    name="fases"
+                    value={form.fases}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="trifásico">Trifásico</option>
+                    <option value="monofásico">Monofásico</option>
+                  </select>
+                </div>
 
-            <label>Voltaje:
-              <input 
-                type="number" 
-                name="voltaje" 
-                value={form.voltaje} 
-                onChange={handleChange}
-                readOnly
-              />
-            </label><br />
+                <div className="form-group">
+                  <label>Voltaje (V):</label>
+                  <input
+                    type="number"
+                    name="voltaje"
+                    value={form.voltaje}
+                    onChange={handleChange}
+                    required
+                    readOnly
+                  />
+                </div>
 
-            <label>
-              Potencia ({form.esMotor ? 'HP' : 'kW'}):
-              <input 
-                type="number" 
-                name="potencia" 
-                value={form.potencia} 
-                onChange={handleChange} 
-                required 
-              />
-            </label><br />
+                <div className="form-group">
+                  <label>Potencia ({form.esMotor ? 'HP' : 'kW'}):</label>
+                  <input
+                    type="number"
+                    name="potencia"
+                    value={form.potencia}
+                    onChange={handleChange}
+                    required
+                    step="0.01"
+                    min="0.1"
+                  />
+                </div>
 
-            <label>Factor de Potencia: <input type="number" step="0.01" name="fp" value={form.fp} onChange={handleChange} required /></label><br />
-            <label>
-              ¿Cuántos conductores por fase?:
+                <div className="form-group">
+                  <label>Factor de Potencia:</label>
+                  <input
+                    type="number"
+                    name="fp"
+                    value={form.fp}
+                    onChange={handleChange}
+                    required
+                    step="0.01"
+                    min="0.1"
+                    max="1"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="form-group">
+              <label>Número de Conductores por Fase:</label>
               <input
                 type="number"
                 name="numConductores"
-                min="1"
                 value={form.numConductores}
                 onChange={handleChange}
                 required
+                min="1"
+                max="6"
               />
-            </label><br />
-          </>
+            </div>
+          </div>
         ) : (
-          // Formulario para cálculo de caída de tensión
-          <>
-            {/* Campos específicos para cálculo de caída */}
+          <div className="form-section">
+            <h3>Cálculo de Caída de Tensión</h3>
+            
             {!currentResult && (
-              <div className="alert">
+              <div className="alert alert-warning">
                 Primero debe realizar el cálculo de corriente
               </div>
-            )}            
-            <label>
-              Longitud del tramo (metros):
-              <input type="number" name="longitud" value={form.longitud} onChange={handleChange} required />
-            </label>
-            
-            <label>
-              % máximo permitido de caída:
-              <input type="number" step="0.01" name="porcentajeMaxAV" value={form.porcentajeMaxAV} onChange={handleChange} required />
-            </label>
-            
-            <label>
-              Ángulo φ (grados):
-              <input type="number" step="0.01" name="phi" value={form.phi} onChange={handleChange} required />
-            </label>
-          </>
+            )}
+
+            <div className="form-group">
+              <label>Longitud del Tramo (metros):</label>
+              <input
+                type="number"
+                name="distancia"
+                value={form.distancia}
+                onChange={handleChange}
+                required
+                min="1"
+                step="0.1"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>% Máximo de Caída Permitida:</label>
+              <input
+                type="number"
+                name="porcentajeMaxCaida"
+                value={form.porcentajeMaxCaida}
+                onChange={handleChange}
+                required
+                min="0.1"
+                max="10"
+                step="0.1"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Ángulo φ (grados):</label>
+              <input
+                type="number"
+                name="phi"
+                value={form.phi}
+                onChange={handleChange}
+                required
+                min="0"
+                max="90"
+                step="1"
+              />
+            </div>
+          </div>
         )}
 
-        {/* Botón para enviar el formulario */}
-        <button type="submit" disabled={calculationType === 'caida' && !currentResult}>
-          Calcular
-        </button>
-        
-        {/* Botón para limpiar el formulario */}
-        <button
-          type="button"
-          onClick={() => {
-            setForm({
-              esMotor: false,
-              tipoMotor: 'inducción',
-              voltaje: '220',
-              potencia: '',
-              fp: '',
-              fases: 'trifásico',
-              numConductores: 1,
-              longitud: '',
-              porcentajeMaxAV: '',
-              phi: '',
-            });
-            onResultado(null);
-          }}
-          style={{ backgroundColor: '#6c757d', marginTop: '10px' }}
-        >
-          Limpiar
-        </button>
+        <div className="form-actions">
+          <button
+            type="submit"
+            className="btn-calculate"
+            disabled={loading || (calculationType === 'caida' && !currentResult)}
+          >
+            {loading ? 'Calculando...' : 'Calcular'}
+          </button>
+
+          <button
+            type="button"
+            className="btn-reset"
+            onClick={resetForm}
+          >
+            Limpiar
+          </button>
+        </div>
       </form>
 
-      {/* Mostramos el resultado del cálculo si existe */}
       {currentResult && (
-        <div className="resultado">
-          <h2>Resultado</h2>
-          <p>Corriente nominal: {currentResult.corriente} A</p>
-          <p>Corriente ajustada (Inm/Ipc): {currentResult.corriente_ajustada} A</p>
-          <p>Factor de agrupamiento: {currentResult.factor_agrupamiento}</p>
-          <p>Corriente agrupada (Inc): {currentResult.corriente_agrupada} A</p>
-          {currentResult.corrienteArranque && (
-            <p>Corriente de Arranque: {currentResult.corrienteArranque} A</p>
-          )}
-          {currentResult.av && (
-            <p><strong>Caída de tensión (AV):</strong> {currentResult.av} V</p>
-          )}
-          {currentResult.caida_tension && (
-            <p><strong>Porcentaje de caída:</strong> {currentResult.caida_tension} %</p>
-          )}
-          <h3>Conductor sugerido</h3>
-          <p>Calibre: {currentResult.conductor_sugerido.calibre}</p>
-          <p>Capacidad: {currentResult.conductor_sugerido.capacidad_corriente} A</p>
-          <p>Material: {currentResult.conductor_sugerido.material}</p>
-          <p>Aislamiento: {currentResult.conductor_sugerido.aislamiento}</p>
-          <p>Diámetro: {currentResult.conductor_sugerido.diametro_mm2} mm²</p>
-        </div>
-      )}
-      {currentResult && currentResult.error && (
-        <div className="error">
-          <p>{currentResult.error}</p>
-        </div>
-      )}
-      
-      {/* Mostramos el historial de cálculos */}
-      <div className="historial">
-        <h2>Historial de Cálculos</h2>
-        {historial.map(item => {
-          const formattedDate = new Date(item.fecha).toLocaleString('es-ES', { 
-            day: '2-digit', 
-            month: '2-digit', 
-            year: 'numeric', 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit' 
-          });
-          return (
-            <div key={item.id} className={`historial-item ${expandedItems[item.id] ? 'expanded' : ''}`}>
-              <div className="historial-summary">
-                {/* Se muestra la fecha y hora formateada: dd/mm/aaaa hh:mm:ss */}
-                <span>{formattedDate}</span>
-                <button onClick={() => toggleItem(item.id)}>
-                  {expandedItems[item.id] ? 'Ocultar Detalles' : 'Ver Detalles'}
-                </button>
-              </div>
-              {expandedItems[item.id] && (
-                <div className="historial-details">
-                  <p>Fecha: {formattedDate}</p>
-                  <p>Voltaje: {item.voltaje} V</p>
-                  <p>Potencia: {item.potencia} {item.es_motor ? "HP" : "kW"}</p>
-                  <p>Factor de Potencia: {item.fp}</p>
-                  <p>Fases: {item.fases}</p>
-                  <p>Es motor: {item.es_motor ? 'Sí' : 'No'}</p>
-                  <p>Tipo de Motor: {item.tipo_motor}</p>
-                  {item.corriente && <p>Corriente nominal: {item.corriente} A</p>}
-                  {item.inm && <p>Corriente ajustada (Inm/Ipc): {item.inm} A</p>}
-                  {item.fa && <p>Factor de agrupamiento: {item.fa}</p>}
-                  {item.inc && <p>Corriente agrupada (Inc): {item.inc} A</p>}
-                  {item.corrienteArranque && <p>Corriente de Arranque: {item.corrienteArranque} A</p>}
-                  {item.av && <p><strong>Caída de tensión (AV):</strong> {item.av} V</p>}
-                  {item.porcentaje_caida && <p><strong>Porcentaje de caída:</strong> {item.porcentaje_caida} %</p>}
-                  <p>Calibre: {item.calibre} mm²</p>
-                  <p>Material: {item.material}</p>
-                  <p>Aislamiento: {item.aislamiento}</p>
-                </div>
-              )}
+        <div className="result-section">
+          <h3>Resultados del Cálculo</h3>
+          
+          <div className="result-grid">
+            <div className="result-item">
+              <span className="result-label">Corriente Nominal:</span>
+              <span className="result-value"> {currentResult.calculos.corrienteNominal} A</span>
             </div>
-          )
-        })}
+            
+            <div className="result-item">
+              <span className="result-label">Corriente Ajustada (Inm/Ipc):</span>
+              <span className="result-value"> {currentResult.calculos.corrienteAjustada} A</span>
+            </div>
+            
+            {/* Mostrar siempre los nuevos campos */}
+            <div className="result-item">
+              <span className="result-label">Factor de Agrupamiento:</span>
+              <span className="result-value"> {currentResult.calculos.factorAgrupamiento}</span>
+            </div>
+            
+            <div className="result-item">
+              <span className="result-label">Corriente Agrupada (Inc):</span>
+              <span className="result-value"> {currentResult.calculos.inc} A</span>
+            </div>
+            
+            {currentResult.calculos.corrienteArranque && (
+              <div className="result-item">
+                <span className="result-label">Corriente de Arranque:</span>
+                <span className="result-value"> {currentResult.calculos.corrienteArranque} A</span>
+              </div>
+            )}
+            
+            {currentResult.analisisCaida && currentResult.analisisCaida.mejorOpcion && (
+              <div className="result-item">
+                <span className="result-label">Caída de Tensión:</span>
+                <span className="result-value">
+                  {` ${currentResult.analisisCaida.mejorOpcion.AV} V (${currentResult.analisisCaida.mejorOpcion.porcentajeAV}%)`}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {(currentResult.conductoresSugeridos || currentResult.conductores) && (
+            <div className="conductores-sugeridos">
+              <h4>Conductor Sugerido</h4>
+              
+              <div className="conductores-grid">
+                {(() => {
+                  const conductor = (currentResult.conductoresSugeridos || currentResult.conductores)[0];
+                  return (
+                    <div className="conductor-card">
+                      <h5> </h5>
+                      <ul>
+                        <li><strong>Calibre:</strong> {conductor.calibre}</li>
+                        <li><strong>Material:</strong> {conductor.material}</li>
+                        <li><strong>Capacidad:</strong> {conductor.capacidadCorriente} A</li> {/* Mostrar correctamente la capacidad */}
+                        <li><strong>Aislamiento:</strong> {conductor.aislamiento}</li>
+                        <li><strong>Sección:</strong> {conductor.diametro_mm2} mm²</li>
+                      </ul>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="historial-section">
+        <h3>Historial de Cálculos</h3>
+        
+        {historial.length === 0 ? (
+          <p>No hay cálculos registrados</p>
+        ) : (
+          <div className="historial-list">
+            {historial.map(item => (
+              <div key={item.id} className={`historial-item ${expandedItems[item.id] ? 'expanded' : ''}`}>
+                <div className="historial-header" onClick={() => toggleItemDetails(item.id)}>
+                  <span className="historial-date">
+                    {new Date(item.fecha).toLocaleString()}
+                  </span>
+                  <span className="historial-summary">
+                    {item.es_motor ? 'Motor' : 'Circuito'} {item.potencia}{item.es_motor ? 'HP' : 'kW'} - {item.voltaje}V {item.fases}
+                  </span>
+                  <span className="historial-toggle">
+                    {expandedItems[item.id] ? '▲' : '▼'}
+                  </span>
+                </div>
+                
+                {expandedItems[item.id] && (
+                  <div className="historial-details">
+                    <div className="detail-row">
+                      <span>Corriente Nominal:</span>
+                      <span>{item.corriente_nominal} A</span>
+                    </div>
+                    <div className="detail-row">
+                      <span>Corriente Ajustada:</span>
+                      <span>{item.corriente_ajustada} A</span>
+                    </div>
+                    {item.corriente_arranque && (
+                      <div className="detail-row">
+                        <span>Corriente de Arranque:</span>
+                        <span>{item.corriente_arranque} A</span>
+                      </div>
+                    )}
+                    <div className="detail-row">
+                      <span>Conductor Seleccionado:</span>
+                      <span>{item.calibre} {item.material} ({item.aislamiento})</span>
+                    </div>
+                    {item.av && (
+                      <div className="detail-row">
+                        <span>Caída de Tensión:</span>
+                        <span>{item.av} V ({item.porcentaje_caida}%)</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 };
 
-// Exportamos el componente
 export default Formulario;
