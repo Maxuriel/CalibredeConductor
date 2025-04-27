@@ -191,79 +191,124 @@ async function seleccionarConductores(resultado, distancia, porcentajeCaidaMax, 
   }
 }
 
-// Cálculo de caída de tensión mejorado
+// Cálculo de caída de tensión mejorado y corregido
 const calcularCaida = async (req, res) => {
-  const { voltaje, longitud, porcentajeMaxAV, phi, currentResult } = req.body;
+  const { 
+    voltaje, 
+    longitud, 
+    porcentajeMaxAV, 
+    phi, 
+    currentResult,
+    numConductores = 1 
+  } = req.body;
 
+  // Validaciones básicas
   if (!currentResult) {
     return res.status(400).json({ error: 'Se requiere el cálculo de corriente previo.' });
   }
 
+  if (!voltaje || !longitud || !porcentajeMaxAV) {
+    return res.status(400).json({ error: 'Faltan parámetros requeridos (voltaje, longitud, porcentajeMaxAV).' });
+  }
+
+  // Convertir ángulo a radianes
   const phiRadians = (phi * Math.PI) / 180;
   const cosenoPhi = Math.cos(phiRadians);
   const senoPhi = Math.sin(phiRadians);
-  const inm = parseFloat(currentResult.calculos.corrienteAjustada);
 
+  // Obtener valores del cálculo previo
+  const corrienteTotal = parseFloat(currentResult.calculos.inc); // inc = corriente corregida total
+  const corrientePorConductor = corrienteTotal / numConductores;
+  const L = longitud / 1000; // Convertir a km
+  const T = 40; // Temperatura de referencia
+
+  // Obtener todos los conductores ordenados por capacidad
   const [conductores] = await db.query(`
-    SELECT id, calibre, material, capacidad_corriente, aislamiento, diametro_mm2, resistencia_ohm_km, reactancia_inductiva 
+    SELECT id, calibre, material, capacidad_corriente, aislamiento, 
+           diametro_mm2, resistencia_ohm_km, reactancia_inductiva 
     FROM conductores 
+    WHERE capacidad_corriente >= ?
     ORDER BY capacidad_corriente ASC
-  `);
+  `, [corrientePorConductor]);
 
   if (!conductores || conductores.length === 0) {
-    return res.status(404).json({ error: 'No se encontraron conductores en la base de datos.' });
-  }
-
-  const L = longitud / 1000; // Convertir longitud a kilómetros
-  const T = 40; // Temperatura de referencia en °C
-  let conductorSugerido = null;
-
-  for (const c of conductores) {
-    const R1 = c.resistencia_ohm_km;
-    const X = c.reactancia_inductiva || 0;
-    const R = R1 * ((234.5 + T) / 254.5); // Ajuste de resistencia por temperatura
-
-    const AV = voltaje > 127
-      ? 1.73 * inm * L * (R * cosenoPhi + X * senoPhi) // Trifásico
-      : 2 * inm * L * (R * cosenoPhi + X * senoPhi);  // Monofásico
-
-    const porcentajeAV = (AV / voltaje) * 100;
-
-    if (porcentajeAV <= porcentajeMaxAV) {
-      conductorSugerido = c;
-      currentResult.av = AV.toFixed(2);
-      currentResult.caida_tension = porcentajeAV.toFixed(2);
-      currentResult.cumple_caida = true;
-      break;
-    }
-  }
-
-  if (!conductorSugerido) {
-    return res.status(404).json({
-      error: 'No se encontró un conductor que cumpla con el porcentaje de caída permitido.',
-      message: 'Por favor, revise los datos ingresados o intente con un porcentaje de caída mayor.'
+    return res.status(404).json({ 
+      error: 'No se encontraron conductores adecuados para la corriente requerida.' 
     });
   }
 
-  currentResult.calculos.av = currentResult.av;
-  currentResult.calculos.caida_tension = currentResult.caida_tension;
-  currentResult.conductoresSugeridos = [conductorSugerido];
-  currentResult.analisisCaida = {
-    mejorOpcion: {
-      AV: currentResult.av,
-      porcentajeAV: currentResult.caida_tension,
-      conductor: {
-        id: conductorSugerido.id,
-        calibre: conductorSugerido.calibre,
-        material: conductorSugerido.material,
-        capacidadCorriente: Number(conductorSugerido.capacidad_corriente),
-        aislamiento: conductorSugerido.aislamiento,
-        diametro_mm2: conductorSugerido.diametro_mm2
+  // Analizar cada conductor
+  let mejorOpcion = null;
+  const opcionesValidas = [];
+
+  for (const conductor of conductores) {
+    // Ajustar resistencia por temperatura
+    const R = conductor.resistencia_ohm_km * ((234.5 + T) / 254.5);
+    const X = conductor.reactancia_inductiva || 0;
+
+    // Calcular caída de tensión según sistema
+    const AV = currentResult.parametros.fases === 'trifásico'
+      ? 1.73 * corrientePorConductor * L * (R * cosenoPhi + X * senoPhi) // Trifásico
+      : 2 * corrientePorConductor * L * (R * cosenoPhi + X * senoPhi);   // Monofásico
+
+    const porcentajeAV = (AV / voltaje) * 100;
+
+    // Si cumple con el porcentaje máximo
+    if (porcentajeAV <= porcentajeMaxAV) {
+      const opcion = {
+        conductor: {
+          id: conductor.id,
+          calibre: conductor.calibre,
+          material: conductor.material,
+          capacidadCorriente: Number(conductor.capacidad_corriente),
+          aislamiento: conductor.aislamiento,
+          diametro_mm2: conductor.diametro_mm2,
+          resistencia: R,
+          reactancia: X
+        },
+        AV: AV.toFixed(2),
+        porcentajeAV: porcentajeAV.toFixed(2)
+      };
+
+      opcionesValidas.push(opcion);
+
+      // Seleccionar el primer conductor que cumple (el más pequeño)
+      if (!mejorOpcion) {
+        mejorOpcion = opcion;
       }
     }
+  }
+
+  // Si no hay conductores que cumplan
+  if (!mejorOpcion) {
+    return res.status(404).json({
+      error: 'Ningún conductor cumple con el porcentaje de caída permitido.',
+      sugerencia: 'Considere: 1) Aumentar el % de caída permitida, 2) Usar más conductores en paralelo, 3) Revisar los parámetros de cálculo',
+      corrienteRequerida: corrientePorConductor,
+      conductoresEvaluados: conductores.length
+    });
+  }
+
+  // Preparar respuesta final
+  const response = {
+    ...currentResult,
+    analisisCaida: {
+      mejorOpcion,
+      opcionesValidas, // Todas las opciones que cumplen
+      parametros: {
+        longitud,
+        porcentajeMaxAV,
+        corrientePorConductor,
+        numConductores
+      }
+    },
+    conductoresSugeridos: [mejorOpcion.conductor] // Compatibilidad con versión anterior
   };
 
-  return res.json(currentResult);
+  // Guardar en historial
+  await guardarConsulta(response);
+
+  return res.json(response);
 };
 
 // Función para filtrar conductores por caída de tensión

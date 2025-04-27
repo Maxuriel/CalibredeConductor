@@ -22,7 +22,7 @@ const Formulario = ({ onResultado }) => {
     fp: '0.9',
     fases: 'trifásico',
     numConductores: 1,
-    distancia: '',
+    distancia: '1000',
     porcentajeMaxCaida: '3',
     phi: '90',
     materialConductor: '',
@@ -163,9 +163,9 @@ const Formulario = ({ onResultado }) => {
       fp: '0.9',
       fases: 'trifásico',
       numConductores: 1,
-      distancia: '',
+      distancia: '100',
       porcentajeMaxCaida: '3',
-      phi: '30',
+      phi: '90',
       materialConductor: 'cobre',
       motorSeleccionado: ''
     });

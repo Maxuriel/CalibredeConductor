@@ -16,7 +16,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Selección de Calibre de Conductor</h1>
+        <h1 className="App-header h1">Selección de Calibre de Conductor</h1> {/* Add className */}
         <Formulario onResultado={setResultado} />
       </header>
 
