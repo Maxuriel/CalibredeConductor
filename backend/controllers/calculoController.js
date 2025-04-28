@@ -3,10 +3,10 @@ const db = require('../db/connection');
 
 // Factores de ajuste según normas internacionales
 const FACTORES_AJUSTE = {
-  motor: 1.25,       // NEC 430.22 para motores
+  motor: 1.25,       // Factor de ajuste para motores (NEC 430.22)
   noMotor: 1.1,      // Factor general para cargas no motor
-  temperatura: 0.88, // Factor para 40°C (ajustable según ambiente)
-  agrupamiento: {    // Factores típicos de agrupamiento NEC 310.15(B)(3)(a)
+  temperatura: 0.88, // Factor de ajuste por temperatura (40°C)
+  agrupamiento: {    // Factores de agrupamiento según NEC 310.15(B)(3)(a)
     1: 1.0,
     2: 0.8,
     3: 0.7,
@@ -19,23 +19,24 @@ const FACTORES_AJUSTE = {
 // Controlador principal para calcular el conductor adecuado
 exports.calcularConductor = async (req, res) => {
   try {
-    const { calculationType, currentResult } = req.body;
+    const { calculationType, currentResult } = req.body; // Extraemos el tipo de cálculo y resultados previos
     console.log('Request body:', req.body);
 
+    // Determinamos el tipo de cálculo a realizar
     if (calculationType === 'corriente') {
-      return await calcularCorriente(req, res);
+      return await calcularCorriente(req, res); // Cálculo de corriente
     } else if (calculationType === 'caida') {
-      return await calcularCaida(req, res);
+      return await calcularCaida(req, res); // Cálculo de caída de tensión
     } else {
-      return res.status(400).json({ error: 'Tipo de cálculo inválido.' });
+      return res.status(400).json({ error: 'Tipo de cálculo inválido.' }); // Error si el tipo no es válido
     }
   } catch (error) {
     console.error('Error en el cálculo:', error);
-    res.status(500).json({ error: 'Error interno del servidor.' });
+    res.status(500).json({ error: 'Error interno del servidor.' }); // Manejo de errores generales
   }
 };
 
-// Función mejorada para calcular la corriente
+// Función para calcular la corriente
 const calcularCorriente = async (req, res) => {
   const { voltaje, potencia, fp, fases, esMotor, tipoMotor, numConductores, distancia, porcentajeCaidaMax } = req.body;
 
@@ -45,12 +46,12 @@ const calcularCorriente = async (req, res) => {
     distancia: distancia || 'No especificada'
   });
 
-  // Validaciones básicas
+  // Validaciones básicas de los datos requeridos
   if (!voltaje || !potencia || !fases) {
     return res.status(400).json({ error: 'Faltan datos obligatorios (voltaje, potencia, fases).' });
   }
 
-  // Cálculos iniciales
+  // Estructura inicial del resultado
   let resultado = {
     parametros: { voltaje, potencia, fp, fases, esMotor, tipoMotor },
     calculos: {}
@@ -60,23 +61,23 @@ const calcularCorriente = async (req, res) => {
   resultado.parametros.numConductores = numConductores || 1;
 
   try {
-    // 1. Cálculo de corriente nominal
+    // 1. Cálculo de corriente nominal según el tipo de carga
     if (esMotor) {
-      await calcularCorrienteMotor(req, res, resultado);
+      await calcularCorrienteMotor(req, res, resultado); // Cálculo para motores
     } else {
-      await calcularCorrienteNoMotor(req, res, resultado);
+      await calcularCorrienteNoMotor(req, res, resultado); // Cálculo para cargas no motor
     }
 
-    // 2. Aplicar factores de ajuste
+    // 2. Aplicar factores de ajuste (temperatura, agrupamiento, etc.)
     aplicarFactoresAjuste(resultado, numConductores);
 
-    // 3. Selección de conductores considerando múltiples criterios
+    // 3. Selección de conductores considerando criterios como corriente y caída de tensión
     await seleccionarConductores(resultado, distancia, porcentajeCaidaMax, numConductores);
 
-    // 4. Guardar consulta en historial
+    // 4. Guardar la consulta en el historial de la base de datos
     await guardarConsulta(resultado);
 
-    // 5. Enviar respuesta estructurada
+    // 5. Enviar la respuesta estructurada al cliente
     return res.json(estructurarRespuesta(resultado));
 
   } catch (error) {
@@ -92,6 +93,7 @@ const calcularCorriente = async (req, res) => {
 async function calcularCorrienteMotor(req, res, resultado) {
   const { tipoMotor, voltaje, potencia } = req.body;
 
+  // Consultamos en la base de datos los datos del motor según tipo, voltaje y potencia
   const [motores] = await db.query(
     `SELECT ipc, corriente_arranque, factor_potencia 
      FROM motores 
@@ -100,15 +102,15 @@ async function calcularCorrienteMotor(req, res, resultado) {
   );
 
   if (motores.length === 0) {
-    throw new Error('Motor no encontrado en la base de datos.');
+    throw new Error('Motor no encontrado en la base de datos.'); // Error si no se encuentra el motor
   }
 
   const motor = motores[0];
   resultado.calculos = {
-    corrienteNominal: motor.ipc,
-    corrienteAjustada: motor.ipc * FACTORES_AJUSTE.motor,
-    corrienteArranque: motor.corriente_arranque,
-    factorPotencia: motor.factor_potencia
+    corrienteNominal: motor.ipc, // Corriente nominal del motor
+    corrienteAjustada: motor.ipc * FACTORES_AJUSTE.motor, // Corriente ajustada con factor de motor
+    corrienteArranque: motor.corriente_arranque, // Corriente de arranque
+    factorPotencia: motor.factor_potencia // Factor de potencia del motor
   };
 }
 
